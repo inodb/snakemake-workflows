@@ -1,0 +1,6 @@
+rule track_dir:
+    input: "{dir}/"
+    output: "{dir}_track.txt"
+    shell: """
+    find {input} -type f | xargs ls -l > {output}
+    """

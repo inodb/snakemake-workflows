@@ -1,0 +1,18 @@
+from snakemake.exceptions import MissingInputException
+
+
+rule cutup:
+    input:
+        lambda wildcards: config["concoct_assemblies"][wildcards.assembly]
+    output:
+        "concoct/{assembly}/cutup/contigs_10K.fasta"
+    params:
+        chunk_size="10000",
+        overlap="0"
+    threads: 1
+    shell:
+        """
+        {config[concoct_load_env]}
+        python {config[concoct_scripts]}/cut_up_fasta.py -c {params.chunk_size} -o {params.overlap} \
+            -m {input} > {output}
+        """
