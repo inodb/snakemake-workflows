@@ -12,7 +12,25 @@ rule cutup:
     threads: 1
     shell:
         """
-        {config[concoct_load_env]}
-        python {config[concoct_scripts]}/cut_up_fasta.py -c {params.chunk_size} -o {params.overlap} \
+        {config[concoct_rules][load_env]}
+        python {config[concoct_rules][scripts_dir]}/cut_up_fasta.py -c {params.chunk_size} -o {params.overlap} \
             -m {input} > {output}
+        """
+
+rule generate_coverage_table:
+    input:
+        asm=lambda wildcards: config["concoct_rules"]["assemblies"][wildcards.assembly],
+        bedcovs=expand("mapping/bowtie2/{{mapping_params}}/{{assembly}}/samples/{samples}.sorted.markduplicates.coverage.tsv",
+               samples=config["bowtie2_rules"]["samples"])
+    output:
+        "concoct/{assembly}/input/concoct_inputtable.tsv",
+        "concoct/{assembly}/input/concoct_inputtableR.tsv"
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        python {config[concoct_rules][scripts_dir]}/scripts/gen_input_table.py --isbedfiles \
+            --samplenames <(for s in {config[bowtie2_rules][samples]}; do echo $$s | cut -d'_' -f1; done) \
+                {input.asm} {input.bedcovs} \
+                > {output[0]}
+        cut -f1,3- {output[0]} > {output[1]}
         """

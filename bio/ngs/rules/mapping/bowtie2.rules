@@ -1,0 +1,95 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+"""
+Read mapping with Bowtie2
+
+For usage, include this in your workflow.
+
+Expects the global variable config
+(see https://bitbucket.org/johanneskoester/snakemake/wiki/Documentation#markdown-header-configuration)
+of at least the following structure, assuming that the desired reference sequence is some genome
+to be found under the given path, and two units A and B have been sequenced with Illumina,
+the first paired and the second single end:
+
+{
+    "bowtie2_rules": {
+        "references": {
+            "genome": "path/to/genome.fasta"
+        },
+        "samples": {
+            "A": ["A"],
+            "B": ["B"]
+        },
+        "units": {
+            "A":
+                ["path/to/A_R1.fastq.gz", "path/to/A_R2.fastq.gz"],
+            "B":
+                ["path/to/B.fastq.gz"]
+        },
+        "platform": "Illumina",
+        "mapping_params": {
+            "default": ""
+        }
+    }
+}
+
+Note the separation between samples and units that allows to have more than
+one sequencing run for each sample, or multiple lanes per sample.
+The "params_bwa_mem" entry is optional.
+"""
+
+
+__author__ = "Johannes KÃ¶ster (http://johanneskoester.bitbucket.org), Ino de Bruijn"
+__license__ = "MIT"
+
+
+UNIT_TO_SAMPLE = {
+    unit: sample for sample, units in config["bowtie2_rules"]["samples"].items()
+    for unit in units}
+
+def create_bowtie2_read_input_str(unit):
+    if len(unit) == 2:
+        return "-1 {unit[0]} -2 {unit[1]}".format(unit=unit)
+    elif len(unit) == 1:
+        return "-r {unit[0]}".format(unit=unit)
+    else:
+        raise(Exception("Units should either be paired library or single read library."))
+
+from snakemake.exceptions import MissingInputException
+
+rule bowtie2_index:
+    input:
+        lambda wildcards: config["bowtie2_rules"]["references"][wildcards.reference]
+    output:
+        expand("mapping/bowtie2/{{reference}}.{index}.bt2", index=range(1,5)),
+        expand("mapping/bowtie2/{{reference}}.rev.{index}.bt2", index=range(1,3))
+    params:
+        prefix="mapping/bowtie2/{reference}"
+    shell:
+        "bowtie2-build {input} {params.prefix}"
+
+
+rule bowtie2_map:
+    input:
+        lambda wildcards: config["bowtie2_rules"]["units"][wildcards.unit],
+        expand("mapping/bowtie2/{{reference}}.{index}.bt2", index=range(1,5)),
+        expand("mapping/bowtie2/{{reference}}.rev.{index}.bt2", index=range(1,3))
+    output:
+        "mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.bam"
+    params:
+        sample=lambda wildcards: UNIT_TO_SAMPLE[wildcards.unit],
+        custom=lambda wildcards: config["bowtie2_rules"]["mapping_params"][wildcards.mapping_params],
+        read_input_str=lambda wildcards: create_bowtie2_read_input_str(config["bowtie2_rules"]["units"][wildcards.unit]),
+        ref_idx_base="mapping/bowtie2/{reference}"
+    log:
+        "mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.log"
+    threads: 4
+    shell:
+        "bowtie2 {params.custom} "
+        "--rg-id '{wildcards.unit}' "
+        r"--rg 'SM:{params.sample}\tPL:{config[bowtie2_rules][platform]}' "
+        "-x {params.ref_idx_base} "
+        "-p {threads} {params.read_input_str} "
+        "-S >(samtools view -Sbh - > {output}) "
+        "2> {log}"

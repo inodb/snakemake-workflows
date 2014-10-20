@@ -99,6 +99,14 @@ class SnakeJobSbatch(SnakeJob):
         print(sbatch_cmd, file=sys.stderr)
         popenrv = subprocess.Popen(sbatch_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True).communicate()
 
+        # Snakemake expects only id of submitted job on stdout for scheduling
+        # with {dependencies}
+        try:
+            print("%i" % int(popenrv[0].split()[-1]))
+        except ValueError:
+            print("Not a submitted job: %s" % popenrv[0])
+            sys.exit(2)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -106,7 +114,8 @@ if __name__ == '__main__':
     parser.add_argument("snakescript", help="Snakemake generated shell script with commands to execute snakemake rule\n")
     args = parser.parse_args()
 
-    print("Passed bidniz:", args.snakescript, args.dependencies, file=sys.stderr)
+    #print("Passed bidniz:", args.snakescript, args.dependencies, file=sys.stderr)
+    #print("Passed args:", args, file=sys.stderr)
     sj = SnakeJobSbatch(args.snakescript, dependencies=args.dependencies, config=json.load(open("config_sbatch.json")))
     try:
         sj.schedule()

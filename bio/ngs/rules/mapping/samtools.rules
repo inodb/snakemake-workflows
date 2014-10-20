@@ -1,0 +1,144 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+"""
+Rules for modifying SAM or BAM files. Need samtools in your path and config
+needs to set picard location with jars in 'picard_jars'.
+
+For usage, include this in your workflow.
+"""
+
+
+__author__ = "Johannes KÃ¶ster, Ino de Bruijn"
+__license__ = "MIT"
+
+
+rule bam_index:
+    input:
+        "{prefix}.bam"
+    output:
+        "{prefix}.bam.bai"
+    shell:
+        "samtools index {input}"
+
+
+rule bam_sort:
+    input:
+        "{prefix}.bam"
+    output:
+        "{prefix}.sorted.bam"
+    shell:
+        "samtools sort {input} {wildcards.prefix}.sorted"
+
+
+rule bam_sort_name:
+    input:
+        "{prefix}.bam"
+    output:
+        "{prefix}.namesorted.bam"
+    shell:
+        "samtools sort -n {input} {wildcards.prefix}.namesorted"
+
+
+#rule sam_to_bam:
+#    input:
+#        "{prefix}.sam"
+#    output:
+#        "{prefix}.bam"
+#    shell:
+#        "samtools view -Sbh {input} > {output}"
+
+
+rule bam_stats:
+    input:
+        "{prefix}.bam"
+    output:
+        "{prefix}.stats.txt"
+    shell:
+        "samtools idxstats {input} > {output}"
+
+
+rule bam_measure_insert_size:
+    input:
+        "{prefix}.sorted.bam"
+    output:
+        txt="{prefix}.insert_size.txt",
+        pdf="{prefix}.insert_size_histogram.pdf"
+    shell:
+        "java -jar {config[samtools_rules][picard_jars]}/CollectInsertSizeMetrics.jar INPUT={input} "
+        "OUTPUT={output.txt} HISTOGRAM_FILE={output.pdf}"
+
+
+rule fasta_index:
+    input:
+        "{prefix}.{suffix}"
+    output:
+        "{prefix}.{suffix,(fasta|fa)}.fai"
+    shell:
+        "samtools faidx {input}"
+
+
+rule fasta_dict:
+    input:
+        "{prefix}.fasta"
+    output:
+        "{prefix}.dict"
+    shell:
+        "java -jar {config[samtools_rules][picard_jars]}/CreateSequenceDictionary.jar REFERENCE={input} "
+        "OUTPUT={output}"
+
+
+rule remove_mark_duplicates:
+    input:
+        "{prefix}.sorted.bam"
+    output:
+        "{prefix}.sorted.removeduplicates.bam",
+        "{prefix}.sorted.removeduplicates.metrics"
+    log:
+        "{prefix}.sorted.removeduplicates.log"
+    params:
+        java_opt="-Xms2g -Xmx32g -XX:MaxPermSize=2g -XX:+CMSClassUnloadingEnabled"
+    shell:
+        """
+        java {params.java_opt} -XX:ParallelGCThreads={threads} \
+            -jar {config[samtools_rules][picard_jars]}/MarkDuplicates.jar \
+            INPUT={input} \
+            OUTPUT={output[0]} \
+            METRICS_FILE={output[1]} \
+            AS=TRUE \
+            VALIDATION_STRINGENCY=LENIENT \
+            MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000 \
+            REMOVE_DUPLICATES=TRUE 2> {log}
+        """
+
+
+rule bedtools_coverage:
+    input:
+        "{prefix}.bam"
+    output:
+        "{prefix}.coverage.tsv"
+    shell:
+        """
+        genomeCoverageBed -ibam {input} > {output}
+        """
+
+
+rule sample_merge:
+    """
+    Merge bam files for multiple units into one for the given sample.
+    If the sample has only one unit, a symlink will be created.
+    """
+    input:
+        lambda wildcards: expand(
+            "mapping/bowtie2/{mapping_params}/{reference}/units/{unit}.sorted.removeduplicates.bam",
+            unit=config["bowtie2_rules"]["samples"][wildcards.sample],
+            mapping_params=wildcards.mapping_params,
+            reference=wildcards.reference)
+    output:
+        "mapping/bowtie2/{mapping_params}/{reference}/samples/{sample}.sorted.removeduplicates.bam"
+    run:
+        if len(input) > 1:
+            shell("samtools merge {output} {input}")
+        else:
+            shell("ln -s {input} {output} && touch -h {output}")
