@@ -3,7 +3,7 @@ from snakemake.exceptions import MissingInputException
 
 rule cutup:
     input:
-        lambda wildcards: config["concoct_assemblies"][wildcards.assembly]
+        lambda wildcards: config["concoct_rules"]["assemblies"][wildcards.assembly]
     output:
         "concoct/{assembly}/cutup/contigs_10K.fasta"
     params:

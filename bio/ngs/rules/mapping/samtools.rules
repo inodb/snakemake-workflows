@@ -9,6 +9,8 @@ needs to set picard location with jars in 'picard_jars'.
 For usage, include this in your workflow.
 """
 
+import os
+
 
 __author__ = "Johannes KÃ¶ster, Ino de Bruijn"
 __license__ = "MIT"
@@ -41,13 +43,13 @@ rule bam_sort_name:
         "samtools sort -n {input} {wildcards.prefix}.namesorted"
 
 
-#rule sam_to_bam:
-#    input:
-#        "{prefix}.sam"
-#    output:
-#        "{prefix}.bam"
-#    shell:
-#        "samtools view -Sbh {input} > {output}"
+rule sam_to_bam:
+    input:
+        "{prefix}.sam"
+    output:
+        "{prefix}.bam"
+    shell:
+        "samtools view -Sbh {input} > {output}"
 
 
 rule bam_stats:
@@ -141,4 +143,5 @@ rule sample_merge:
         if len(input) > 1:
             shell("samtools merge {output} {input}")
         else:
-            shell("ln -s {input} {output} && touch -h {output}")
+            shell("ln -fs ../units/{basename} {{output}} && touch -h "
+                "{{output}}".format(basename=os.path.basename(input[0])))

@@ -81,7 +81,8 @@ rule bowtie2_map:
         sample=lambda wildcards: UNIT_TO_SAMPLE[wildcards.unit],
         custom=lambda wildcards: config["bowtie2_rules"]["mapping_params"][wildcards.mapping_params],
         read_input_str=lambda wildcards: create_bowtie2_read_input_str(config["bowtie2_rules"]["units"][wildcards.unit]),
-        ref_idx_base="mapping/bowtie2/{reference}"
+        ref_idx_base="mapping/bowtie2/{reference}",
+        sam="mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.sam"
     log:
         "mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.log"
     threads: 4
@@ -91,5 +92,7 @@ rule bowtie2_map:
         r"--rg 'SM:{params.sample}\tPL:{config[bowtie2_rules][platform]}' "
         "-x {params.ref_idx_base} "
         "-p {threads} {params.read_input_str} "
-        "-S >(samtools view -Sbh - > {output}) "
-        "2> {log}"
+        "-S {params.sam} "
+        "2> {log} && "
+        "samtools view -Sbh {params.sam} > {output} && "
+        "rm {params.sam}"
