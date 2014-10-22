@@ -36,7 +36,6 @@ the first paired and the second single end:
 
 Note the separation between samples and units that allows to have more than
 one sequencing run for each sample, or multiple lanes per sample.
-The "params_bwa_mem" entry is optional.
 """
 
 

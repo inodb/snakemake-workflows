@@ -1,7 +1,9 @@
 from snakemake.exceptions import MissingInputException
 
+#  add 10K cutup as references for bowtie2 to map against
+config["bowtie2_rules"]["references"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
 
-rule cutup:
+rule cutup_10K:
     input:
         lambda wildcards: config["concoct_rules"]["assemblies"][wildcards.assembly]
     output:
@@ -17,20 +19,43 @@ rule cutup:
             -m {input} > {output}
         """
 
-rule generate_coverage_table:
+rule all_cutup_10K:
     input:
-        asm=lambda wildcards: config["concoct_rules"]["assemblies"][wildcards.assembly],
-        bedcovs=expand("mapping/bowtie2/{{mapping_params}}/{{assembly}}/samples/{samples}.sorted.markduplicates.coverage.tsv",
-               samples=config["bowtie2_rules"]["samples"])
+            expand("concoct/{assembly}/cutup/contigs_10K.fasta", assembly=config["concoct_rules"]["assemblies"])
+
+
+rule all_map_10K:
+    input:
+        expand("mapping/{mapper}/{mapping_params}/{assembly}/samples/{sample}.sorted.removeduplicates.bam",
+               assembly=config["bowtie2_rules"]["references"],
+               sample=config["bowtie2_rules"]["samples"],
+               mapping_params=config["concoct_rules"]["mapping_params"],
+               mapper=config["concoct_rules"]["mapper"])
+
+
+rule generate_coverage_table_10K:
+    input:
+        asm="concoct/{assembly}/cutup/contigs_10K.fasta",
+        bedcovs=expand("mapping/{mapper}/{mapping_params}/{{assembly}}_10K/samples/{samples}.sorted.removeduplicates.coverage.tsv",
+                   samples=sorted(config["bowtie2_rules"]["samples"]),
+                   mapper=config["concoct_rules"]["mapper"],
+                   mapping_params=config["concoct_rules"]["mapping_params"])
     output:
         "concoct/{assembly}/input/concoct_inputtable.tsv",
         "concoct/{assembly}/input/concoct_inputtableR.tsv"
+    params:
+        sample_names=sorted(config["bowtie2_rules"]["samples"])
     shell:
         """
         {config[concoct_rules][load_env]}
-        python {config[concoct_rules][scripts_dir]}/scripts/gen_input_table.py --isbedfiles \
-            --samplenames <(for s in {config[bowtie2_rules][samples]}; do echo $$s | cut -d'_' -f1; done) \
+        python {config[concoct_rules][scripts_dir]}/gen_input_table.py --isbedfiles \
+            --samplenames <(for s in {params.sample_names}; do echo $s; done) \
                 {input.asm} {input.bedcovs} \
                 > {output[0]}
         cut -f1,3- {output[0]} > {output[1]}
         """
+
+rule all_concoct_inputtable_10K:
+    input:
+        expand("concoct/{assembly}/input/concoct_inputtableR.tsv", assembly=config["concoct_rules"]["assemblies"])
+
