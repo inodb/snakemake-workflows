@@ -57,6 +57,7 @@ def create_bowtie2_read_input_str(unit):
 
 from snakemake.exceptions import MissingInputException
 
+
 rule bowtie2_index:
     input:
         lambda wildcards: config["bowtie2_rules"]["references"][wildcards.reference]
@@ -66,6 +67,7 @@ rule bowtie2_index:
     params:
         prefix="mapping/bowtie2/{reference}"
     shell:
+        "{config[bowtie2_rules][load_env]}"
         "bowtie2-build {input} {params.prefix}"
 
 
@@ -86,6 +88,7 @@ rule bowtie2_map:
         "mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.log"
     threads: 4
     shell:
+        "{config[bowtie2_rules][load_env]}"
         "bowtie2 {params.custom} "
         "--rg-id '{wildcards.unit}' "
         r"--rg 'SM:{params.sample}\tPL:{config[bowtie2_rules][platform]}' "

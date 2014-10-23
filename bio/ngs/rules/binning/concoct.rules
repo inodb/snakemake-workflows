@@ -3,7 +3,7 @@ from snakemake.exceptions import MissingInputException
 #  add 10K cutup as references for bowtie2 to map against
 config["bowtie2_rules"]["references"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
 
-rule cutup_10K:
+rule concoct_cutup_10K:
     input:
         lambda wildcards: config["concoct_rules"]["assemblies"][wildcards.assembly]
     output:
@@ -19,12 +19,12 @@ rule cutup_10K:
             -m {input} > {output}
         """
 
-rule all_cutup_10K:
+rule concoct_cutup_10K_all:
     input:
             expand("concoct/{assembly}/cutup/contigs_10K.fasta", assembly=config["concoct_rules"]["assemblies"])
 
 
-rule all_map_10K:
+rule concoct_map_10K_all:
     input:
         expand("mapping/{mapper}/{mapping_params}/{assembly}/samples/{sample}.sorted.removeduplicates.bam",
                assembly=config["bowtie2_rules"]["references"],
@@ -33,7 +33,7 @@ rule all_map_10K:
                mapper=config["concoct_rules"]["mapper"])
 
 
-rule generate_coverage_table_10K:
+rule concoct_generate_coverage_table_10K:
     input:
         asm="concoct/{assembly}/cutup/contigs_10K.fasta",
         bedcovs=expand("mapping/{mapper}/{mapping_params}/{{assembly}}_10K/samples/{samples}.sorted.removeduplicates.coverage.tsv",
@@ -51,11 +51,46 @@ rule generate_coverage_table_10K:
         python {config[concoct_rules][scripts_dir]}/gen_input_table.py --isbedfiles \
             --samplenames <(for s in {params.sample_names}; do echo $s; done) \
                 {input.asm} {input.bedcovs} \
-                > {output[0]}
+                > {output[0]} && \
         cut -f1,3- {output[0]} > {output[1]}
         """
 
-rule all_concoct_inputtable_10K:
+
+rule concoct_inputtable_10K_all:
     input:
         expand("concoct/{assembly}/input/concoct_inputtableR.tsv", assembly=config["concoct_rules"]["assemblies"])
 
+
+rule concoct_run_10K:
+    """
+    Run CONCOCT
+    """
+    input:
+        asm="concoct/{assembly}/cutup/contigs_10K.fasta",
+        input_table="concoct/{assembly}/input/concoct_inputtableR.tsv"
+    output:
+        clustering="concoct/{assembly}/output/{cparams}/clustering.csv"
+    params:
+        output_folder="concoct/{assembly}/output/{cparams}/",
+        concoct_params=lambda wildcards: config["concoct_rules"]["concoct_params"][wildcards.cparams]
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        concoct {params.concoct_params} \
+            --coverage_file {input.input_table} \
+            --composition_file {input.asm} \
+            -b {params.output_folder} && \
+        ln -fs $(basename {params.output_folder}clustering_gt*.csv) \
+               {output.clustering} && \
+        touch -h {output.clustering}
+        """
+
+
+rule concoct_run_10K_all:
+    """
+    Run CONCOCT on all assemblies over all parameters specified in the config file.
+    """
+    input:
+        expand("concoct/{assembly}/output/{concoct_params}/clustering.csv",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"].keys())
