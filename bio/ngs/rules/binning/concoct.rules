@@ -93,4 +93,7 @@ rule concoct_run_10K_all:
     input:
         expand("concoct/{assembly}/output/{concoct_params}/clustering.csv",
             assembly=config["concoct_rules"]["assemblies"],
-            concoct_params=config["concoct_rules"]["concoct_params"].keys())
+            concoct_params=config["concoct_rules"]["concoct_params"])
+
+#  add 10K cutup as assemblies for prodigal to predict genes for
+config["prodigal_rules"]["assemblies"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
