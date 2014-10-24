@@ -22,9 +22,9 @@ rule prodigal_run:
 
 rule prodigal_run_all:
     input:
-        expand("annotation/prodigal/{parameters}/{assembly}/proteins/proteins.faa",
+        protein_aas=expand("annotation/prodigal/{parameters}/{assembly}/proteins/proteins.faa",
             parameters=config["prodigal_rules"]["prodigal_params"],
             assembly=config["prodigal_rules"]["assemblies"]),
-        expand("annotation/prodigal/{parameters}/{assembly}/proteins/proteins.gff",
+        protein_gffs=expand("annotation/prodigal/{parameters}/{assembly}/proteins/proteins.gff",
             parameters=config["prodigal_rules"]["prodigal_params"],
             assembly=config["prodigal_rules"]["assemblies"])

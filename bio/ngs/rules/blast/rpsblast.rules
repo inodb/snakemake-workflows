@@ -1,0 +1,30 @@
+rule rpsblast_run:
+    """
+    Usese GNU Parallel to run query sequence against given database with given
+    rpsblast parameters.
+    """
+    input:
+        aa=lambda wildcards: config["rpsblast_rules"]["query_aas"][wildcards.protein_aa]
+    output:
+        rps_out="blast/rpsblast/{parameters}/{db}/{protein_aa}/rpsblast.out"
+    params:
+        rpsblast_params=lambda wildcards: config["rpsblast_rules"]["rpsblast_params"][wildcards.parameters].replace('"',"'"),
+        db=lambda wildcards: config["rpsblast_rules"]["databases"][wildcards.db]
+    shell:
+        """
+        {config[rpsblast_rules][load_env]}
+        cat {input.aa} | \
+        parallel --pipe -N 10000 --recstart '>' --no-notice \
+            rpsblast "{params.rpsblast_params}" \
+                -query {input.aa} \
+                -db {params.db} \
+                -out {output.rps_out}
+        """
+
+
+rule rpsblast_run_all:
+    input:
+        expand("blast/rpsblast/{parameters}/{db}/{protein_aa}/rpsblast.out",
+            parameters=config["rpsblast_rules"]["rpsblast_params"],
+            db=config["rpsblast_rules"]["databases"],
+            protein_aa=config["rpsblast_rules"]["query_aas"])
