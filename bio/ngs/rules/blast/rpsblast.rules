@@ -1,6 +1,6 @@
 rule rpsblast_run:
     """
-    Usese GNU Parallel to run query sequence against given database with given
+    Uses GNU Parallel to run query sequence against given database with given
     rpsblast parameters.
     """
     input:
@@ -9,16 +9,18 @@ rule rpsblast_run:
         rps_out="blast/rpsblast/{parameters}/{db}/{protein_aa}/rpsblast.out"
     params:
         rpsblast_params=lambda wildcards: config["rpsblast_rules"]["rpsblast_params"][wildcards.parameters].replace('"',"'"),
-        db=lambda wildcards: config["rpsblast_rules"]["databases"][wildcards.db]
+        db=lambda wildcards: config["rpsblast_rules"]["databases"][wildcards.db],
+        parallel_params=config["rpsblast_rules"].get("parallel_params", "")
     shell:
         """
         {config[rpsblast_rules][load_env]}
         cat {input.aa} | \
-        parallel --pipe -N 10000 --recstart '>' --no-notice \
+        parallel {params.parallel_params} \
+            --pipe -k -N 10000 --recstart '>' --no-notice \
             rpsblast "{params.rpsblast_params}" \
-                -query {input.aa} \
+                -query - \
                 -db {params.db} \
-                -out {output.rps_out}
+        > {output.rps_out}
         """
 
 
