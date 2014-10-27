@@ -155,3 +155,22 @@ rule concoct_eval_cog_plot_all:
         expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf",
             assembly=config["concoct_rules"]["assemblies"],
             concoct_params=config["concoct_rules"]["concoct_params"])
+
+
+rule concoct_eval_cog_report:
+    input:
+        expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"])
+    output:
+        "cog_plots.html"
+    shell:
+        """
+        (
+            echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
+            for p in {input}; do
+                echo "<a href='$p'>$p</a><br />"
+            done
+            echo '</body></html>'
+        ) > {output}
+        """
