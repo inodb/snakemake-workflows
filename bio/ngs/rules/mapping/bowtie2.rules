@@ -67,8 +67,10 @@ rule bowtie2_index:
     params:
         prefix="mapping/bowtie2/{reference}"
     shell:
-        "{config[bowtie2_rules][load_env]}"
-        "bowtie2-build {input} {params.prefix}"
+        """
+        {config[bowtie2_rules][load_env]}
+        bowtie2-build {input} {params.prefix}
+        """
 
 
 rule bowtie2_map:
@@ -88,13 +90,15 @@ rule bowtie2_map:
         "mapping/bowtie2/{mapping_params}/{reference}/units/{unit,\w+}.log"
     threads: 4
     shell:
-        "{config[bowtie2_rules][load_env]}"
-        "bowtie2 {params.custom} "
-        "--rg-id '{wildcards.unit}' "
-        r"--rg 'SM:{params.sample}\tPL:{config[bowtie2_rules][platform]}' "
-        "-x {params.ref_idx_base} "
-        "-p {threads} {params.read_input_str} "
-        "-S {params.sam} "
-        "2> {log} && "
-        "samtools view -Sbh {params.sam} > {output} && "
-        "rm {params.sam}"
+        """
+        {config[bowtie2_rules][load_env]}
+        bowtie2 {params.custom} \
+        --rg-id '{wildcards.unit}' \
+        --rg 'SM:{params.sample}\\tPL:{config[bowtie2_rules][platform]}' \
+        -x {params.ref_idx_base} \
+        -p {threads} {params.read_input_str} \
+        -S {params.sam} \
+        2> {log} && \
+        samtools view -Sbh {params.sam} > {output} && \
+        rm {params.sam}
+        """

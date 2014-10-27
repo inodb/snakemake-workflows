@@ -22,8 +22,10 @@ rule bam_index:
     output:
         "{prefix}.bam.bai"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools index {input}"
+        """
+        {config[samtools_rules][load_env]}
+        samtools index {input}
+        """
 
 
 rule bam_sort:
@@ -32,8 +34,10 @@ rule bam_sort:
     output:
         "{prefix}.sorted.bam"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools sort {input} {wildcards.prefix}.sorted"
+        """
+        {config[samtools_rules][load_env]}
+        samtools sort {input} {wildcards.prefix}.sorted
+        """
 
 
 rule bam_sort_name:
@@ -42,8 +46,10 @@ rule bam_sort_name:
     output:
         "{prefix}.namesorted.bam"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools sort -n {input} {wildcards.prefix}.namesorted"
+        """
+        {config[samtools_rules][load_env]}
+        samtools sort -n {input} {wildcards.prefix}.namesorted
+        """
 
 
 rule sam_to_bam:
@@ -52,8 +58,10 @@ rule sam_to_bam:
     output:
         "{prefix}.bam"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools view -Sbh {input} > {output}"
+        """
+        {config[samtools_rules][load_env]}
+        samtools view -Sbh {input} > {output}
+        """
 
 
 rule bam_stats:
@@ -62,8 +70,10 @@ rule bam_stats:
     output:
         "{prefix}.stats.txt"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools idxstats {input} > {output}"
+        """
+        {config[samtools_rules][load_env]}
+        samtools idxstats {input} > {output}
+        """
 
 
 rule bam_measure_insert_size:
@@ -73,8 +83,12 @@ rule bam_measure_insert_size:
         txt="{prefix}.insert_size.txt",
         pdf="{prefix}.insert_size_histogram.pdf"
     shell:
-        "java -jar {config[samtools_rules][picard_jars]}/CollectInsertSizeMetrics.jar INPUT={input} "
-        "OUTPUT={output.txt} HISTOGRAM_FILE={output.pdf}"
+        """
+        java -jar {config[samtools_rules][picard_jars]}/CollectInsertSizeMetrics.jar \
+            INPUT={input} \
+            OUTPUT={output.txt} \
+            HISTOGRAM_FILE={output.pdf}
+        """
 
 
 rule fasta_index:
@@ -83,8 +97,10 @@ rule fasta_index:
     output:
         "{prefix}.{suffix,(fasta|fa)}.fai"
     shell:
-        "{config[samtools_rules][load_env]}"
-        "samtools faidx {input}"
+        """
+        {config[samtools_rules][load_env]}
+        samtools faidx {input}
+        """
 
 
 rule fasta_dict:
@@ -93,8 +109,11 @@ rule fasta_dict:
     output:
         "{prefix}.dict"
     shell:
-        "java -jar {config[samtools_rules][picard_jars]}/CreateSequenceDictionary.jar REFERENCE={input} "
-        "OUTPUT={output}"
+        """
+        java -jar {config[samtools_rules][picard_jars]}/CreateSequenceDictionary.jar \
+            REFERENCE={input} \
+            OUTPUT={output}
+        """
 
 
 rule remove_mark_duplicates:

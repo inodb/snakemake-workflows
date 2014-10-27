@@ -1,5 +1,14 @@
 from snakemake.exceptions import MissingInputException
 
+# Check values in config file
+CONFIG_REQS = ["assemblies", "mapper", "mapping_params", "concoct_params", "scripts_dir"]
+if "concoct_rules" not in config:
+    raise(Exception("concoct_rules key not in config file"))
+for cr in CONFIG_REQS:
+    if cr not in config["concoct_rules"]:
+        raise(Exception("{cr} not in concoct_rules config file".format(cr=cr)))
+
+
 #  add 10K cutup as references for bowtie2 to map against
 config["bowtie2_rules"]["references"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
 
@@ -99,5 +108,50 @@ rule concoct_run_10K_all:
 #  add 10K cutup as assemblies for prodigal to predict genes for
 config["prodigal_rules"]["assemblies"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
 
-#  add prodigal predicted genes as 
+#  add prodigal predicted genes as query for rpsblast
 config["rpsblast_rules"]["query_aas"] = {a: "annotation/prodigal/default-meta/{a}/proteins/proteins.faa".format(a=a) for a in config["prodigal_rules"]["assemblies"]}
+
+
+rule concoct_eval_cog_table:
+    """
+    Generate COG table from rpsblast output and concoct binning results
+    """
+    input:
+        clust="concoct/{assembly}/output/{concoct_params}/clustering.csv",
+        rpsblast="blast/rpsblast/default-concoct/cog/{assembly}_10K/rpsblast.out"
+    output:
+        "concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.tsv"
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        python {config[concoct_rules][scripts_dir]}/COG_table.py \
+            -b {input.rpsblast} \
+            -m {config[concoct_rules][scripts_dir]}/../scgs/scg_cogs_min0.97_max1.03_unique_genera.txt \
+            -c {input.clust} \
+            --cdd_cog_file {config[concoct_rules][scripts_dir]}/../scgs/cdd_to_cog.tsv \
+            > {output}
+        """
+
+
+rule concoct_eval_cog_plot:
+    """
+    Plot COGs using COG table
+    """
+    input:
+        "concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.tsv"
+    output:
+        "concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf"
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        Rscript {config[concoct_rules][scripts_dir]}/COGPlot.R \
+            -s {input} \
+            -o {output}
+        """
+
+
+rule concoct_eval_cog_plot_all:
+    input:
+        expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"])
