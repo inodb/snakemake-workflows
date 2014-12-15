@@ -137,20 +137,20 @@ rule concoct_eval_cog_table:
 rule concoct_extract_approved_scg_bins:
     input:
         scg_tsvs=expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.tsv",
-            assembly=config["concoct_rules"]["assemblies"],
-            concoct_params=config["concoct_rules"]["concoct_params"]),
+            assembly=sorted(config["concoct_rules"]["assemblies"]),
+            concoct_params=sorted(config["concoct_rules"]["concoct_params"])),
         asms=expand("concoct/{assembly}/cutup/contigs_10K.fasta",
-            assembly=config["concoct_rules"]["assemblies"],
-            concoct_params=config["concoct_rules"]["concoct_params"])
+            assembly=sorted(config["concoct_rules"]["assemblies"]),
+            concoct_params=sorted(config["concoct_rules"]["concoct_params"]))
     output:
         dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
     params:
         names=expand("{assembly}_{concoct_params}",
-            assembly=config["concoct_rules"]["assemblies"],
-            concoct_params=config["concoct_rules"]["concoct_params"]),
+            assembly=sorted(config["concoct_rules"]["assemblies"]),
+            concoct_params=sorted(config["concoct_rules"]["concoct_params"])),
         groups=expand("{assembly}",
-            assembly=config["concoct_rules"]["assemblies"],
-            concoct_params=config["concoct_rules"]["concoct_params"])
+            assembly=sorted(config["concoct_rules"]["assemblies"]),
+            concoct_params=sorted(config["concoct_rules"]["concoct_params"]))
     shell:
         """
             {config[concoct_rules][load_env]}
