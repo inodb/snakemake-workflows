@@ -172,17 +172,18 @@ rule concoct_extract_approved_scg_bins_all:
 rule concoct_dnadiff_dist_matrix:
     """Get distance matrix from approved SCG bins"""
     input:
-        dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
+        clusters=dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
     output:
         "concoct/dnadiff_dist_matrix/dist_matrix.tsv",
         "concoct/dnadiff_dist_matrix/hclust_heatmap.pdf",
         "concoct/dnadiff_dist_matrix/hclust_dendrogram.pdf"
-    shell:
-        """
+    run:
+        sorted_input = sorted(input.clusters)
+        shell("""
         {config[concoct_rules][load_env]}
         python {config[concoct_rules][scripts_dir]}/dnadiff_dist_matrix.py \
-            concoct/dnadiff_dist_matrix {input}
-        """
+            concoct/dnadiff_dist_matrix {sorted_input}
+        """)
 
 
 rule concoct_eval_cog_plot:
