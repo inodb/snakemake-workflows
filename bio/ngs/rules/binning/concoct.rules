@@ -185,6 +185,23 @@ rule concoct_dnadiff_dist_matrix:
             concoct/dnadiff_dist_matrix {sorted_input}
         """)
 
+rule concoct_dnadiff_dist_matrix_report:
+    input:
+        rules.concoct_dnadiff_dist_matrix.output
+    output:
+        "report/concoct/dnadiff_dist_matrix/index.html"
+    shell:
+        """
+        cp --parents {input} report/
+        (
+            echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
+            for p in $(for i in {input}; do basename $i; done | sort); do
+                echo "<a href='$p'>$p</a><br />"
+            done
+            echo '</body></html>'
+        ) > {output}
+        """
+
 
 rule concoct_eval_cog_plot:
     """
@@ -232,7 +249,8 @@ rule concoct_eval_cog_report:
 
 rule concoct_eval_report:
     input:
-        cog_html=rules.concoct_eval_cog_report.output
+        cog_html=rules.concoct_eval_cog_report.output,
+        dnadiff_html=rules.concoct_dnadiff_dist_matrix_report.output
     output:
         "report/concoct/index.html"
     shell:
@@ -240,6 +258,7 @@ rule concoct_eval_report:
         (
             echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
             echo "<a href='cog_plots.html'>COG Plots</a><br />"
+            echo "<a href='dnadiff_dist_matrix/index.html'>DNA Diff matrix as constructed with MUMmer</a><br />"
             echo '</body></html>'
         ) > {output}
         """
