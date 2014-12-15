@@ -140,25 +140,29 @@ rule concoct_extract_approved_scg_bins:
             assembly=config["concoct_rules"]["assemblies"],
             concoct_params=config["concoct_rules"]["concoct_params"]),
         asms=expand("concoct/{assembly}/cutup/contigs_10K.fasta",
-        assembly=config["concoct_rules"]["assemblies"],
-        concoct_params=config["concoct_rules"]["concoct_params"])
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"])
     output:
         dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
     params:
         names=expand("{assembly}_{concoct_params}",
-        assembly=config["concoct_rules"]["assemblies"],
-        concoct_params=config["concoct_rules"]["concoct_params"])
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"]),
+        groups=expand("{assembly}",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"])
     shell:
         """
-        {config[concoct_rules][load_env]}
-        python {config[concoct_rules][scripts_dir]}/extract_scg_bins.py \
-            --output_folder concoct/approved_scg_bins \
-            --scg_tsvs {input.scg_tsvs} \
-            --fasta_files {input.asms} \
-            --names {params.names} \
-            --max_missing_scg 5 \
-            --max_multicopy_scg 2
-        """
+            {config[concoct_rules][load_env]}
+            python {config[concoct_rules][scripts_dir]}/extract_scg_bins.py \
+                --output_folder concoct/approved_scg_bins \
+                --scg_tsvs {input.scg_tsvs} \
+                --fasta_files {input.asms} \
+                --names {params.names} \
+                --groups {params.groups} \
+                --max_missing_scg 5 \
+                --max_multicopy_scg 2
+         """
 
 rule concoct_extract_approved_scg_bins_all:
     input:
