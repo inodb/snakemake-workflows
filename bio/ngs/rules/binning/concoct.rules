@@ -1,4 +1,6 @@
+import os
 from snakemake.exceptions import MissingInputException
+from snakemake.utils import report
 
 # Check values in config file
 CONFIG_REQS = ["assemblies", "mapper", "mapping_params", "concoct_params", "scripts_dir"]
@@ -132,6 +134,52 @@ rule concoct_eval_cog_table:
             > {output}
         """
 
+rule concoct_extract_approved_scg_bins:
+    input:
+        scg_tsvs=expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.tsv",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"]),
+        asms=expand("concoct/{assembly}/cutup/contigs_10K.fasta",
+        assembly=config["concoct_rules"]["assemblies"],
+        concoct_params=config["concoct_rules"]["concoct_params"])
+    output:
+        dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
+    params:
+        names=expand("{assembly}_{concoct_params}",
+        assembly=config["concoct_rules"]["assemblies"],
+        concoct_params=config["concoct_rules"]["concoct_params"])
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        python {config[concoct_rules][scripts_dir]}/extract_scg_bins.py \
+            --output_folder concoct/approved_scg_bins \
+            --scg_tsvs {input.scg_tsvs} \
+            --fasta_files {input.asms} \
+            --names {params.names} \
+            --max_missing_scg 5 \
+            --max_multicopy_scg 2
+        """
+
+rule concoct_extract_approved_scg_bins_all:
+    input:
+        dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
+
+
+rule concoct_dnadiff_dist_matrix:
+    """Get distance matrix from approved SCG bins"""
+    input:
+        dynamic("concoct/approved_scg_bins/{cluster_name}.fa")
+    output:
+        "concoct/dnadiff_dist_matrix/dist_matrix.tsv",
+        "concoct/dnadiff_dist_matrix/hclust_heatmap.pdf",
+        "concoct/dnadiff_dist_matrix/hclust_dendrogram.pdf"
+    shell:
+        """
+        {config[concoct_rules][load_env]}
+        python {config[concoct_rules][scripts_dir]}/dnadiff_dist_matrix.py \
+            concoct/dnadiff_dist_matrix {input}
+        """
+
 
 rule concoct_eval_cog_plot:
     """
@@ -157,20 +205,54 @@ rule concoct_eval_cog_plot_all:
             concoct_params=config["concoct_rules"]["concoct_params"])
 
 
+
 rule concoct_eval_cog_report:
     input:
         expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf",
             assembly=config["concoct_rules"]["assemblies"],
             concoct_params=config["concoct_rules"]["concoct_params"])
     output:
-        "cog_plots.html"
+        "report/concoct/cog_plots.html"
     shell:
         """
+        cp --parents {input} report/
         (
             echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
-            for p in {input}; do
+            for p in $(for i in {input}; do echo $i | cut -d/ -f2-; done | sort); do
                 echo "<a href='$p'>$p</a><br />"
             done
             echo '</body></html>'
         ) > {output}
         """
+
+rule concoct_eval_report:
+    input:
+        cog_html=rules.concoct_eval_cog_report.output
+    output:
+        "report/concoct/index.html"
+    shell:
+        """
+        (
+            echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
+            echo "<a href='cog_plots.html'>COG Plots</a><br />"
+            echo '</body></html>'
+        ) > {output}
+        """
+
+
+rule concoct_eval_cog_report_flashy:
+    input:
+        cog_plots=expand("concoct/{assembly}/evaluation/scg/{concoct_params}/clustering_scg.pdf",
+            assembly=config["concoct_rules"]["assemblies"],
+            concoct_params=config["concoct_rules"]["concoct_params"])
+    output:
+        html="report/concoct/cog_plots_flashy.html"
+    run:
+        dict_cp = {"{a}-{cp}".format(a=cp.split("/")[1],cp=cp.split("/")[4]):cp for cp in input.cog_plots}
+        cp_ids = "\n".join(["- " + cp + "_" for cp in sorted(dict_cp.keys())])
+        report("""
+        =========
+        SCG Plots
+        =========
+        {cp_ids}
+        """, output.html, **dict_cp)
