@@ -1,0 +1,92 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+"""
+Rules for analysing fasta files with FastQC.
+
+For usage, include this in your workflow.
+"""
+
+
+__author__ = "Johannes Köster (http://johanneskoester.bitbucket.org), Ino de Bruijn (http://ino.pm)"
+__license__ = "MIT"
+
+
+# Check values in config file
+CONFIG_REQS = ["reads"]
+if "fastqc_rules" not in config:
+    raise(Exception("fastqc_rules key not in config file"))
+for cr in CONFIG_REQS:
+    if cr not in config["fastqc_rules"]:
+        raise(Exception("{cr} not in concoct_rules config file".format(cr=cr)))
+
+
+def get_fasta_basename(filename):
+    """Return basename of fasta/fastq file"""
+    filename = os.path.basename(filename)
+    possible_ext = [".fastq", ".fq.gz", ".fastq.gz", ".fasta", ".fa", ".fa.gz",
+        ".fasta.gz"]
+    for e in possible_ext:
+        if filename.endswith(e):
+            return filename[:-len(e)]
+    return filename
+
+import glob
+
+
+rule fastqc:
+    input:
+        lambda wildcards: glob.glob(wildcards.prefix + ".fastq*")
+    output:
+        "{prefix}_fastqc.zip",
+        "{prefix}_fastqc.html"
+    shell:
+        """
+        {config[fastqc_rules][load_env]}
+        fastqc {input}
+        """
+
+
+rule create_read_symlink:
+    """Create symbolic links for given reads"""
+    input:
+        lambda wildcards: config["fastqc_rules"]["reads"][wildcards.reads]
+    output:
+        "fastqc/{reads}"
+    shell:
+        """
+        ln -s {input} {output}
+        """
+
+
+rule fastqc_all:
+    input:
+        htmls=expand("fastqc/{reads}_fastqc.html", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()]),
+        zips=expand("fastqc/{reads}_fastqc.zip", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()])
+
+
+rule fastqc_report:
+    input:
+        rules.fastqc_all.input.htmls
+    output:
+        "report/fastqc/index.html"
+    shell:
+        """
+        cp --parents {input} report/
+        (
+            echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
+            for p in $(for i in {input}; do basename $i; done | sort); do
+                echo "<a href='$p'>$p</a><br />"
+            done
+            echo '</body></html>'
+        ) > {output}
+        """
+
+
+rule fastqc_clean:
+    """Remove FastQC dir"""
+    shell:
+        """
+        rm -rf fastqc/
+        """

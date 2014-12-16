@@ -1,0 +1,6 @@
+rule gzip:
+    input: "{prefix}"
+    output: "{prefix}.gz"
+    shell: """
+    gzip {input}
+    """
