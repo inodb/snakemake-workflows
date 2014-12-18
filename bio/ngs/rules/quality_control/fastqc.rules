@@ -32,12 +32,18 @@ def get_fasta_basename(filename):
             return filename[:-len(e)]
     return filename
 
-import glob
+import os
 
 
 rule fastqc:
+    """Generates fastqc output for given fastq or fastq.gz file. The reads can
+    be specified in the config file but this is not necessary."""
     input:
-        lambda wildcards: glob.glob(wildcards.prefix + ".fastq*")
+        lambda wildcards: \
+            ["fastqc/{}".format(os.path.basename(r)) for r in config["fastqc_rules"]["reads"] \
+                if get_fasta_basename(r) == os.path.basename(wildcards.prefix)]\
+            or glob.glob(wildcards.prefix + ".fa*") \
+            or "{}.{{fastq.gz,fastq}}".format(wildcards.prefix)
     output:
         "{prefix}_fastqc.zip",
         "{prefix}_fastqc.html"
@@ -62,25 +68,44 @@ rule create_read_symlink:
 
 rule fastqc_all:
     input:
+        links=expand("fastqc/{reads}", reads=config["fastqc_rules"]["reads"]),
         htmls=expand("fastqc/{reads}_fastqc.html", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()]),
         zips=expand("fastqc/{reads}_fastqc.zip", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()])
 
 
+import glob
+
 rule fastqc_report:
     input:
-        rules.fastqc_all.input.htmls
+        htmls=sorted(rules.fastqc_all.input.htmls),
+        zips=sorted(rules.fastqc_all.input.zips),
+        readme_rst=glob.glob("report/fastqc/README.rst")
     output:
-        "report/fastqc/index.html"
+        report="report/fastqc/index.html"
+    params:
+        htmls_basename=[os.path.basename(h) for h in sorted(rules.fastqc_all.input.htmls)],
+        readme_html="report/fastqc/README.html"
     shell:
         """
-        cp --parents {input} report/
+        cp --parents {input.htmls} report/
         (
+            htmls=( {params.htmls_basename} )
+            zips=( {input.zips} )
             echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
-            for p in $(for i in {input}; do basename $i; done | sort); do
-                echo "<a href='$p'>$p</a><br />"
+            echo '<h1>FastQC</h1>'
+            for i in $(seq 0 $((${{#htmls[@]}}-1))); do
+                echo "<a href='${{htmls[$i]}}'>${{htmls[$i]}}</a> "
+                echo "PASS:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c PASS) "
+                echo "WARN:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c WARN) "
+                echo "FAIL:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c FAIL)"
+                echo "<br />"
+            done
+            for f in {input.readme_rst}; do
+                echo "<iframe style='width: 80%; height: 100%;' frameBorder=0 src='README.html'></iframe>"
+                rst2html.py $f > {params.readme_html}
             done
             echo '</body></html>'
-        ) > {output}
+        ) > {output.report}
         """
 
 
