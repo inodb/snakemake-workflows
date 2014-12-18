@@ -1,4 +1,5 @@
 import os
+import glob
 from snakemake.exceptions import MissingInputException
 from snakemake.utils import report
 
@@ -185,18 +186,26 @@ rule concoct_dnadiff_dist_matrix:
             concoct/dnadiff_dist_matrix {sorted_input}
         """)
 
+
 rule concoct_dnadiff_dist_matrix_report:
     input:
-        rules.concoct_dnadiff_dist_matrix.output
+        dnadiff_output=rules.concoct_dnadiff_dist_matrix.output,
+        readme_rst=glob.glob("report/concoct/dnadiff_dist_matrix/README.rst")
     output:
         "report/concoct/dnadiff_dist_matrix/index.html"
+    params:
+        readme_html="report/concoct/dnadiff_dist_matrix/README.html"
     shell:
         """
-        cp --parents {input} report/
+        cp --parents {input.dnadiff_output} report/
         (
             echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
-            for p in $(for i in {input}; do basename $i; done | sort); do
+            for p in $(for i in {input.dnadiff_output}; do basename $i; done | sort); do
                 echo "<a href='$p'>$p</a><br />"
+            done
+            for f in {input.readme_rst}; do
+                echo "<iframe style='width: 80%; height: 100%;' frameBorder=0 src='README.html'></iframe>"
+                rst2html.py $f > {params.readme_html}
             done
             echo '</body></html>'
         ) > {output}
