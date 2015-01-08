@@ -19,7 +19,7 @@ if "fastqc_rules" not in config:
     raise(Exception("fastqc_rules key not in config file"))
 for cr in CONFIG_REQS:
     if cr not in config["fastqc_rules"]:
-        raise(Exception("{cr} not in concoct_rules config file".format(cr=cr)))
+        raise(Exception("{cr} not in config file".format(cr=cr)))
 
 
 def get_fasta_basename(filename):

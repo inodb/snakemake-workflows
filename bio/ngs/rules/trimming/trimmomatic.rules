@@ -1,0 +1,48 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+"""
+Rules for trimming NGS reads with trimmomatic
+(http://www.usadellab.org/cms/?page=trimmomatic)
+
+For usage, include this in your workflow.
+"""
+
+
+__author__ = "Ino de Bruijn (http://ino.pm)"
+__license__ = "MIT"
+
+
+# Check values in config file
+CONFIG_REQS = ["reads", "trim_params"]
+if "trimmomatic_rules" not in config:
+    raise(Exception("trimmomatic_rules key not in config file"))
+for cr in CONFIG_REQS:
+    if cr not in config["trimmomatic_rules"]:
+        raise(Exception("{cr} not in config file".format(cr=cr)))
+
+rule trimmomatic_pe:
+    """Trims given paired-end reads with given parameters"""
+    input:
+        lambda wildcards: config["trimmomatic_rules"]["reads"][wildcards.reads]
+    output:
+        "trimmomatic/{trim_params}/{reads}_1P.fastq.gz",
+        "trimmomatic/{trim_params}/{reads}_2P.fastq.gz",
+        "trimmomatic/{trim_params}/{reads}_1U.fastq.gz",
+        "trimmomatic/{trim_params}/{reads}_2U.fastq.gz"
+    params:
+        trim_params=lambda wildcards: config["trimmomatic_rules"]["trim_params"][wildcards.trim_params]
+    shell:
+        """
+        time java -jar {config[trimmomatic_rules][jar]} PE \
+            {input} {output[0]} {output[2]} {output[1]} {output[3]} \
+            {params.trim_params}
+        """
+
+rule trimmomatic_all:
+    """Trim all reads with all supplied trimming parameters"""
+    input:
+        trimmed_reads=expand("trimmomatic/{trim_params}/{reads}_{ext}.fastq.gz", reads=config["trimmomatic_rules"]["reads"],
+        trim_params=config["trimmomatic_rules"]["trim_params"],
+        ext=["1P","2P","1U","2U"])
