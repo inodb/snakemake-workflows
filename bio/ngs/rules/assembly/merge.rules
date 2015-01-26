@@ -1,0 +1,25 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+__author__ = "Ino de Bruijn"
+__license__ = "MIT"
+
+
+rule merge_newbler:
+    input:
+        lambda wildcards: config["assembly_merge_rules"]["merge"][wildcards.merge]
+    output:
+        "assembly/newbler/{merge}/454AllContigs.fna"
+    shell:
+        """
+        {config[assembly_merge_rules][load_env]}
+        bash -x $METASSEMBLE_DIR/scripts/assembly/merge-asm-newbler.sh \
+            assembly/newbler/{wildcards.merge} {input}
+        """
+
+
+rule merge_newbler_all:
+    input:
+        expand("assembly/newbler/{merge}/454AllContigs.fna",
+               merge=config["assembly_merge_rules"]["merge"])

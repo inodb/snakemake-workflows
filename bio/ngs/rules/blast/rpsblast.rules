@@ -16,7 +16,7 @@ rule rpsblast_run:
         {config[rpsblast_rules][load_env]}
         cat {input.aa} | \
         parallel {params.parallel_params} \
-            --pipe -k -N 10000 --recstart '>' --no-notice \
+            --pipe -k --recstart '>' --no-notice \
             rpsblast "{params.rpsblast_params}" \
                 -query - \
                 -db {params.db} \

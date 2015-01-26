@@ -1,0 +1,121 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+"""
+Rules for analysing fasta files with FastQC.
+
+For usage, include this in your workflow.
+"""
+
+
+__author__ = "Ino de Bruijn (http://ino.pm)"
+__license__ = "MIT"
+
+
+rule assembly_report:
+    """Creates an assembly HTML report + json for given assemblies. Uses masmvali (github.com/inodb/masmvali)"""
+    input:
+        asms=lambda wildcards: sorted(config["assembly_report_rules"]["assemblies"])
+    output:
+        report="report/assemblies/index.html",
+        json="report/assemblies/data.json"
+    shell:
+        """
+        {config[assembly_report_rules][load_env]}
+        python <(cat <<EOF
+
+import json
+from masmvali.assembly import asm_stats_fasta
+import sys
+
+first = True
+print "["
+for asm in "{input.asms}".split():
+    for cut_off in [100, 1000]:
+        if first:
+            first = False
+        else:
+            sys.stdout.write(",\\n")
+
+        res = asm_stats_fasta(asm, cut_off=cut_off)
+        json_out = {{"name":asm,
+                     "cut_off":cut_off,
+                     "l50":res[0],
+                     "n50":res[1],
+                     "totbases":res[2],
+                     "max_length":res[3],
+                     "nr_contigs":res[4]}}
+        sys.stdout.write(json.dumps(json_out))
+print "]"
+
+EOF
+        ) > {output.json}
+        cat > {output.report} <<EOF
+            <html>
+            <head>
+            <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+            <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+            <!-- Latest compiled and minified CSS -->
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+            <!-- Latest compiled and minified JavaScript -->
+            <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+
+            <!-- Latest compiled and minified CSS -->
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.5.0/bootstrap-table.min.css">
+            <!-- Latest compiled and minified JavaScript -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.5.0/bootstrap-table.min.js"></script>
+            <script src="https://raw.githubusercontent.com/wenzhixin/bootstrap-table/master/src/extensions/export/bootstrap-table-export.js"></script>
+            <script src="https://rawgit.com/kayalshri/tableExport.jquery.plugin/master/tableExport.js"></script>
+            <script src="https://rawgit.com/kayalshri/tableExport.jquery.plugin/master/jquery.base64.js"></script>
+            </head>
+            <body>
+                <h1>Assembly Stats</h1>
+                <div class="container">
+                    <table
+                           data-toggle="table"
+                           data-show-export="true"
+                           data-search="true"
+                           data-show-columns="true"
+                           data-url="data.json"
+                           data-sort-name="name"
+                           data-sort-order="asc"
+                           data-export="true">
+                        <thead>
+                            <tr>
+                                <th data-field="name"
+                                    data-sortable="true">
+                                    name
+                                </th>
+                                <th data-field="cut_off"
+                                    data-sortable="true">
+                                    cutoff
+                                </th>
+                                <th data-field="nr_contigs"
+                                    data-sortable="true">
+                                    nr_contigs
+                                </th>
+                                <th data-field="totbases"
+                                    data-sortable="true">
+                                    totbases
+                                </th>
+                                <th data-field="l50"
+                                    data-sortable="true">
+                                    l50
+                                </th>
+                                <th data-field="n50"
+                                    data-sortable="true">
+                                    n50
+                                </th>
+                                <th data-field="max_length"
+                                    data-sortable="true">
+                                    max_length
+                                </th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </body>
+            </html>
+EOF
+        """

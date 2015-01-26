@@ -13,7 +13,7 @@ for cr in CONFIG_REQS:
 
 
 #  add 10K cutup as references for bowtie2 to map against
-config["bowtie2_rules"]["references"] = {a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]}
+config["bowtie2_rules"].setdefault("references", {}).update({a + "_10K": "concoct/{a}/cutup/contigs_10K.fasta".format(a=a) for a in config["concoct_rules"]["assemblies"]})
 
 rule concoct_cutup_10K:
     input:
@@ -114,6 +114,8 @@ config["prodigal_rules"]["assemblies"] = {a + "_10K": "concoct/{a}/cutup/contigs
 #  add prodigal predicted genes as query for rpsblast
 config["rpsblast_rules"]["query_aas"] = {a: "annotation/prodigal/default-meta/{a}/proteins/proteins.faa".format(a=a) for a in config["prodigal_rules"]["assemblies"]}
 
+#  add prodigal predicted genes as query for hmmer
+config["hmmer_rules"]["query_aas"] = config["rpsblast_rules"]["query_aas"]
 
 rule concoct_eval_cog_table:
     """

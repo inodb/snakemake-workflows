@@ -1,0 +1,38 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+__author__ = "Ino de Bruijn"
+__license__ = "MIT"
+
+
+def create_ray_read_input_str(unit):
+    if len(unit) == 2:
+        return "-p {unit[0]} {unit[1]}".format(unit=unit)
+    elif len(unit) == 1:
+        return "-s {unit[0]}".format(unit=unit)
+    else:
+        raise(Exception("Units should either be paired library or single read library."))
+
+rule ray_assembly:
+    input:
+        lambda wildcards: sum([config["ray_rules"]["units"][unit] for unit in config["ray_rules"]["samples"][wildcards.sample]], [])
+    output:
+        "assembly/ray/{assembly_params}/{sample}/out_{kmer}/Contigs.fasta"
+    params:
+        custom=lambda wildcards: config["ray_rules"]["assembly_params"][wildcards.assembly_params],
+        read_input_str=lambda wildcards: " ".join([create_ray_read_input_str(config["ray_rules"]["units"][unit]) for unit in config["ray_rules"]["samples"][wildcards.sample]])
+    shell:
+        """
+        {config[ray_rules][load_env]}
+        rm -rf assembly/ray/{wildcards.assembly_params}/{wildcards.sample}/out_{wildcards.kmer}/tmp
+        {config[ray_rules][mpi_cmd]} Ray {params.custom} \
+        {params.read_input_str} \
+        -o assembly/ray/{wildcards.assembly_params}/{wildcards.sample}/out_{wildcards.kmer}/tmp
+        mv assembly/ray/{wildcards.assembly_params}/{wildcards.sample}/out_{wildcards.kmer}/tmp/* \
+           assembly/ray/{wildcards.assembly_params}/{wildcards.sample}/out_{wildcards.kmer}/
+        """
+
+rule ray_assembly_all:
+    input:
+        expand("assembly/ray/{assembly_params}/{sample}/out_{kmer}/Contigs.fasta", assembly_params=config["ray_rules"]["assembly_params"], sample=config["ray_rules"]["samples"], kmer=config["ray_rules"]["kmers"])

@@ -62,15 +62,15 @@ rule create_read_symlink:
         "fastqc/{reads}"
     shell:
         """
-        ln -s {input} {output}
+        ln -s $(readlink -f {input}) {output}
         """
 
 
 rule fastqc_all:
     input:
         links=expand("fastqc/{reads}", reads=config["fastqc_rules"]["reads"]),
-        htmls=expand("fastqc/{reads}_fastqc.html", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()]),
-        zips=expand("fastqc/{reads}_fastqc.zip", reads=[get_fasta_basename(v) for v in config["fastqc_rules"]["reads"].values()])
+        htmls=expand("fastqc/{reads}_fastqc.html", reads=[get_fasta_basename(r) for r in config["fastqc_rules"]["reads"]]),
+        zips=expand("fastqc/{reads}_fastqc.zip", reads=[get_fasta_basename(r) for r in config["fastqc_rules"]["reads"]])
 
 
 import glob
@@ -81,31 +81,98 @@ rule fastqc_report:
         zips=sorted(rules.fastqc_all.input.zips),
         readme_rst=glob.glob("report/fastqc/README.rst")
     output:
-        report="report/fastqc/index.html"
+        report="report/fastqc/index.html",
+        json="report/fastqc/data.json"
     params:
         htmls_basename=[os.path.basename(h) for h in sorted(rules.fastqc_all.input.htmls)],
         readme_html="report/fastqc/README.html"
     shell:
         """
         cp --parents {input.htmls} report/
+        htmls=( {params.htmls_basename} )
+        zips=( {input.zips} )
         (
-            htmls=( {params.htmls_basename} )
-            zips=( {input.zips} )
-            echo '<html><head><style>body {{ text-align: center }}</style></head><body>'
-            echo '<h1>FastQC</h1>'
-            for i in $(seq 0 $((${{#htmls[@]}}-1))); do
-                echo "<a href='${{htmls[$i]}}'>${{htmls[$i]}}</a> "
-                echo "PASS:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c PASS) "
-                echo "WARN:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c WARN) "
-                echo "FAIL:$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c FAIL)"
-                echo "<br />"
-            done
+            cat <<EOF
+                    <html>
+                    <head>
+                    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+                    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+                    <!-- Latest compiled and minified CSS -->
+                    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+                    <!-- Latest compiled and minified JavaScript -->
+                    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+
+                    <!-- Latest compiled and minified CSS -->
+                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.5.0/bootstrap-table.min.css">
+                    <!-- Latest compiled and minified JavaScript -->
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.5.0/bootstrap-table.min.js"></script>
+                    <script src="https://raw.githubusercontent.com/wenzhixin/bootstrap-table/master/src/extensions/export/bootstrap-table-export.js"></script>
+                    <script src="https://rawgit.com/kayalshri/tableExport.jquery.plugin/master/tableExport.js"></script>
+                    <script src="https://rawgit.com/kayalshri/tableExport.jquery.plugin/master/jquery.base64.js"></script>
+                    </head>
+                    <body>
+                        <h1>FastQC</h1>
+                        <div class="container">
+                            <table
+                                   data-toggle="table"
+                                   data-show-export="true"
+                                   data-search="true"
+                                   data-show-columns="true"
+                                   data-url="data.json"
+                                   data-sort-name="url"
+                                   data-sort-order="asc"
+                                   data-export="true">
+                                <thead>
+                                    <tr>
+                                        <th data-field="url"
+                                            data-sortable="true">
+                                            Reads
+                                        </th>
+                                        <th data-field="Total Sequences"
+                                            data-sortable="true">
+                                            Total Seq
+                                        </th>
+                                        <th data-field="PASS"
+                                            data-sortable="true">
+                                            PASS
+                                        </th>
+                                        <th data-field="WARN"
+                                            data-sortable="true">
+                                            WARN
+                                        </th>
+                                        <th data-field="FAIL"
+                                            data-sortable="true">
+                                            FAIL
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+EOF
             for f in {input.readme_rst}; do
-                echo "<iframe style='width: 80%; height: 100%;' frameBorder=0 src='README.html'></iframe>"
+                echo "<div class="container"><iframe style='width: 80%; height: 100%;' frameBorder=0 src='README.html'></iframe></div>"
                 rst2html.py $f > {params.readme_html}
             done
             echo '</body></html>'
         ) > {output.report}
+        (
+            echo "["
+            for i in $(seq 0 $((${{#htmls[@]}}-1))); do
+                echo "{{"
+                echo '"url":"<a href='"'${{htmls[$i]}}'"">${{htmls[$i]}}</a>"'",'
+                echo '"PASS":'$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c PASS),
+                echo '"WARN":'$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c WARN),
+                echo '"FAIL":'$(unzip -p ${{zips[$i]}} '*/summary.txt' | grep -c FAIL),
+                paste <(unzip -p ${{zips[$i]}} '*/summary.txt' | cut -f2) <(unzip -p ${{zips[$i]}} '*/summary.txt' | cut -f1) | awk -v ORS=",\n" -v FS="\t" -v OFS=":" '{{print "\\""$1"\\"", "\\""$2"\\""}}'
+                echo '"Total Sequences":'$(unzip -p ${{zips[$i]}} '*/fastqc_data.txt' | grep "Total Sequences" | cut -f2)
+                if [[ $i -ne $((${{#htmls[@]}}-1)) ]]; then
+                    echo "}},"
+                else
+                    echo "}}"
+                fi
+            done
+            echo "]"
+        ) > {output.json}
         """
 
 

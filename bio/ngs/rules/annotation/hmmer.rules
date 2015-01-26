@@ -1,0 +1,45 @@
+# vim: syntax=python tabstop=4 expandtab
+# coding: utf-8
+
+
+__author__ = "Ino de Bruijn"
+__license__ = "MIT"
+
+from snakemake.exceptions import MissingInputException
+
+
+rule hmmer_run:
+    """
+    Uses HMmer to run query sequence against given database with given
+    parameters.
+    """
+    input:
+        aa=lambda wildcards: config["hmmer_rules"]["query_aas"][wildcards.protein_aa]
+    output:
+        hmmer_out="hmmer/{parameters}/{db}/{protein_aa}/hmmer.out",
+        hmmer_tsv="hmmer/{parameters}/{db}/{protein_aa}/hmmer.tsv"
+    params:
+        hmmer_params=lambda wildcards: config["hmmer_rules"]["hmmer_params"][wildcards.parameters],
+        db=lambda wildcards: config["hmmer_rules"]["databases"][wildcards.db]
+    shell:
+        """
+        {config[hmmer_rules][load_env]}
+        hmmscan \
+            {params.hmmer_params} \
+            --tblout {output.hmmer_tsv} \
+            {params.db} \
+            {input.aa} \
+        > {output.hmmer_out}
+        """
+
+
+rule hmmer_run_all:
+    input:
+        outs=expand("hmmer/{parameters}/{db}/{protein_aa}/hmmer.out",
+            parameters=config["hmmer_rules"]["hmmer_params"],
+            db=config["hmmer_rules"]["databases"],
+            protein_aa=config["hmmer_rules"]["query_aas"]),
+        tsvs=expand("hmmer/{parameters}/{db}/{protein_aa}/hmmer.tsv",
+            parameters=config["hmmer_rules"]["hmmer_params"],
+            db=config["hmmer_rules"]["databases"],
+            protein_aa=config["hmmer_rules"]["query_aas"])
